@@ -2,65 +2,104 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
 
-local FISHING_DELAY = 0.01
-local AUTO_REEL = true
-local MAX_SPEED = true
+-- Konfigurasi
+local FISHING_DELAY = 0.10 -- jeda antar percobaan cast saat MAX_SPEED=false
+local AUTO_REEL = true      -- otomatis menarik saat ada "bite"
+local MAX_SPEED = true      -- true: tanpa jeda; false: gunakan FISHING_DELAY
 
 local function getRod()
-    local rod = player.Character:FindFirstChildOfClass("Tool")
-    if rod and (rod:FindFirstChild("RodScript") or rod.Name:lower():find("rod")) then
-        return rod
+    local character = player.Character or player.CharacterAdded:Wait()
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then
+        return nil
+    end
+    local nameLower = string.lower(tool.Name)
+    if tool:FindFirstChild("RodScript") or string.find(nameLower, "rod", 1, true) then
+        return tool
     end
     return nil
 end
 
-spawn(function()
-    while wait() do
-        local rod = getRod()
-        if not rod then continue end
-        
-        if MAX_SPEED then
-            if ReplicatedStorage:FindFirstChild("Remotes") then
-                local remotes = ReplicatedStorage.Remotes
-                if remotes:FindFirstChild("Fishing") then
-                    remotes.Fishing:FireServer("Cast")
-                elseif remotes:FindFirstChild("ThrowRod") then
-                    remotes.ThrowRod:FireServer()
-                end
-            end
-        else
-            wait(FISHING_DELAY)
-            if ReplicatedStorage:FindFirstChild("Remotes") then
-                local remotes = ReplicatedStorage.Remotes
-                if remotes:FindFirstChild("Fishing") then
-                    remotes.Fishing:FireServer("Cast")
+local function getRemotes()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if remotes and remotes:IsA("Folder") then
+        return remotes
+    end
+    return nil
+end
+
+local function castLine()
+    local remotes = getRemotes()
+    if not remotes then
+        return
+    end
+    if remotes:FindFirstChild("Fishing") then
+        remotes.Fishing:FireServer("Cast")
+        return
+    end
+    if remotes:FindFirstChild("ThrowRod") then
+        remotes.ThrowRod:FireServer()
+        return
+    end
+    if remotes:FindFirstChild("Cast") then
+        remotes.Cast:FireServer()
+        return
+    end
+end
+
+local function reelIn()
+    local remotes = getRemotes()
+    if not remotes then
+        return
+    end
+    if remotes:FindFirstChild("Fishing") then
+        remotes.Fishing:FireServer("Reel")
+        return
+    end
+    if remotes:FindFirstChild("Reel") then
+        remotes.Reel:FireServer()
+        return
+    end
+    if remotes:FindFirstChild("Pull") then
+        remotes.Pull:FireServer()
+        return
+    end
+end
+
+local function detectBite()
+    local playerGui = player:WaitForChild("PlayerGui")
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        local guiNameLower = string.lower(gui.Name)
+        if string.find(guiNameLower, "fishing", 1, true) then
+            for _, indicator in ipairs(gui:GetChildren()) do
+                local indicatorNameLower = string.lower(indicator.Name)
+                if (string.find(indicatorNameLower, "bite", 1, true)
+                    or string.find(indicatorNameLower, "catch", 1, true)
+                    or string.find(indicatorNameLower, "fish", 1, true))
+                    and indicator:IsA("GuiObject")
+                    and indicator.Visible then
+                    return true
                 end
             end
         end
-        
-        if AUTO_REEL then
-            local hasBite = false
-            local playerGui = player:WaitForChild("PlayerGui")
-            for _, gui in pairs(playerGui:GetChildren()) do
-                if gui.Name:lower():find("fishing") then
-                    for _, indicator in pairs(gui:GetChildren()) do
-                        if (indicator.Name:lower():find("bite") or 
-                            indicator.Name:lower():find("catch") or
-                            indicator.Name:lower():find("fish")) and
-                           indicator.Visible then
-                            hasBite = true
-                            break
-                        end
-                    end
-                end
-            end
-            
-            if hasBite then
-                if MAX_SPEED then
-                    if ReplicatedStorage:FindFirstChild("Remotes") then
-                        local remotes = ReplicatedStorage.Remotes
-                        if remotes:FindFirstChild("Fishing") then
-                            remotes.Fishing:FireServer("Reel")
-                        elseif remotes:Find
+    end
+    return false
+end
+
+-- Jalankan loop auto-fishing di client
+task.spawn(function()
+    while task.wait(MAX_SPEED and 0 or FISHING_DELAY) do
+        local rod = getRod()
+        if not rod then
+            continue
+        end
+
+        castLine()
+
+        if AUTO_REEL and detectBite() then
+            reelIn()
+            task.wait(0.1)
+        end
+    end
+end)

@@ -1,66 +1,47 @@
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- Inisialisasi RNG (penting agar hasilnya acak)
+math.randomseed(os.time())
+math.random()
+math.random()
+math.random()
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
+-- Variabel Global atau Status Pemain
+local player_luck = 100  -- 🚀 NILAI KEBERUNTUNGAN TINGGI (Ditingkatkan dari 5) 🚀
+local base_chance = 0.05 -- Peluang dasar untuk event langka (5%)
+local luck_multiplier = 0.01 -- Seberapa besar 1 poin keberuntungan mempengaruhi peluang (1% per poin)
 
-local FISHING_DELAY = 0.01
-local AUTO_REEL = true
-local MAX_SPEED = true
+-- Fungsi untuk menghitung peluang sukses event langka
+function calculate_success_chance(base, luck, multiplier)
+    -- Peluang yang dimodifikasi: Base + (Luck * Multiplier)
+    local chance_increase = luck * multiplier
+    local total_chance = base + chance_increase
 
-local function getRod()
-    local rod = player.Character:FindFirstChildOfClass("Tool")
-    if rod and (rod:FindFirstChild("RodScript") or rod.Name:lower():find("rod")) then
-        return rod
-    end
-    return nil
+    -- Batasi peluang maksimal, misalnya tidak lebih dari 0.95 (95%)
+    -- Jika keberuntungan 100, maka: 0.05 + (100 * 0.01) = 0.05 + 1.00 = 1.05
+    -- Nilai yang dikembalikan akan dibatasi menjadi 0.95 (95%)
+    return math.min(total_chance, 0.95)
 end
 
-spawn(function()
-    while wait() do
-        local rod = getRod()
-        if not rod then continue end
-        
-        if MAX_SPEED then
-            if ReplicatedStorage:FindFirstChild("Remotes") then
-                local remotes = ReplicatedStorage.Remotes
-                if remotes:FindFirstChild("Fishing") then
-                    remotes.Fishing:FireServer("Cast")
-                elseif remotes:FindFirstChild("ThrowRod") then
-                    remotes.ThrowRod:FireServer()
-                end
-            end
-        else
-            wait(FISHING_DELAY)
-            if ReplicatedStorage:FindFirstChild("Remotes") then
-                local remotes = ReplicatedStorage.Remotes
-                if remotes:FindFirstChild("Fishing") then
-                    remotes.Fishing:FireServer("Cast")
-                end
-            end
-        end
-        
-        if AUTO_REEL then
-            local hasBite = false
-            local playerGui = player:WaitForChild("PlayerGui")
-            for _, gui in pairs(playerGui:GetChildren()) do
-                if gui.Name:lower():find("fishing") then
-                    for _, indicator in pairs(gui:GetChildren()) do
-                        if (indicator.Name:lower():find("bite") or 
-                            indicator.Name:lower():find("catch") or
-                            indicator.Name:lower():find("fish")) and
-                           indicator.Visible then
-                            hasBite = true
-                            break
-                        end
-                    end
-                end
-            end
-            
-            if hasBite then
-                if MAX_SPEED then
-                    if ReplicatedStorage:FindFirstChild("Remotes") then
-                        local remotes = ReplicatedStorage.Remotes
-                        if remotes:FindFirstChild("Fishing") then
-                            remotes.Fishing:FireServer("Reel")
-                        elseif remotes:Find
+-- Fungsi utama untuk mencoba event langka
+function attempt_rare_event(luck_value)
+    local success_chance = calculate_success_chance(base_chance, luck_value, luck_multiplier)
+    local roll = math.random()
+
+    print(string.format("Keberuntungan Pemain: %d", luck_value))
+    print(string.format("Peluang Sukses: %.2f%%", success_chance * 100))
+    print(string.format("Roll Acak (0.00-1.00): %.4f", roll))
+
+    if roll < success_chance then
+        print("🎉 SUKSES! Event langka berhasil!")
+        return true
+    else
+        print("❌ GAGAL. Event langka tidak terjadi.")
+        return false
+    end
+end
+
+-- ===================================
+-- ⬇️ Contoh Penggunaan Keberuntungan Tinggi ⬇️
+-- ===================================
+
+print("--- Percobaan Keberuntungan TINGGI (Luck = 100) ---")
+attempt_rare_event(player_luck)
